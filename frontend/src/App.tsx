@@ -4,6 +4,7 @@ import type { User } from "./types";
 import { api } from "./services/api";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import { IconSpinner } from "./components/icons";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,7 +20,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
+      <div className="flex min-h-screen items-center justify-center gap-2 bg-slate-50 text-sm text-slate-400">
+        <IconSpinner className="h-4 w-4 text-brand-500" />
         Loading...
       </div>
     );

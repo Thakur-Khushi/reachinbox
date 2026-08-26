@@ -1,13 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
 import type { User, EmailRecipient } from "../types";
 import { api, ApiError } from "../services/api";
-import Header from "../components/Header";
+import Sidebar, { type Tab } from "../components/Sidebar";
 import ComposeForm from "../components/ComposeForm";
 import RecipientTable from "../components/RecipientTable";
-
-type Tab = "compose" | "scheduled" | "sent";
+import StatCard from "../components/StatCard";
+import { IconClock, IconCheckCircle, IconAlertTriangle } from "../components/icons";
 
 const POLL_INTERVAL_MS = 5000;
+
+const PAGE_COPY: Record<Tab, { title: string; subtitle: string }> = {
+  compose: {
+    title: "Compose a campaign",
+    subtitle: "Upload recipients, set your sending rules, and schedule.",
+  },
+  scheduled: {
+    title: "Scheduled emails",
+    subtitle: "Waiting to be sent — this list refreshes automatically.",
+  },
+  sent: {
+    title: "Sent emails",
+    subtitle: "Completed and failed sends, with Ethereal preview links.",
+  },
+};
 
 export default function Dashboard({
   user,
@@ -64,65 +79,68 @@ export default function Dashboard({
     return () => clearInterval(id);
   }, [loadScheduled, loadSent]);
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "compose", label: "Compose" },
-    { key: "scheduled", label: `Scheduled (${scheduled.length})` },
-    { key: "sent", label: `Sent (${sent.length})` },
-  ];
+  const sentOk = sent.filter((r) => r.status === "SENT").length;
+  const failed = sent.filter((r) => r.status === "FAILED").length;
+  const { title, subtitle } = PAGE_COPY[tab];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header user={user} onLoggedOut={onLoggedOut} />
+    <div className="flex h-screen bg-slate-50">
+      <Sidebar
+        tab={tab}
+        onTabChange={setTab}
+        scheduledCount={scheduled.length}
+        sentCount={sent.length}
+        user={user}
+        onLoggedOut={onLoggedOut}
+      />
 
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        <div className="mb-6 flex gap-2 border-b border-gray-200">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`border-b-2 px-3 py-2 text-sm font-medium ${
-                tab === t.key
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-5xl px-8 py-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          </div>
+
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard label="Scheduled" value={scheduled.length} icon={IconClock} accent="brand" />
+            <StatCard label="Sent" value={sentOk} icon={IconCheckCircle} accent="emerald" />
+            <StatCard label="Failed" value={failed} icon={IconAlertTriangle} accent="rose" />
+          </div>
+
+          {tab === "compose" && (
+            <ComposeForm
+              onScheduled={() => {
+                loadScheduled();
+                setTab("scheduled");
+              }}
+            />
+          )}
+
+          {tab === "scheduled" && (
+            <RecipientTable
+              rows={scheduled}
+              loading={scheduledLoading}
+              error={scheduledError}
+              emptyMessage="No scheduled emails yet. Compose one to get started."
+              emptyAction={{ label: "Compose an email", onClick: () => setTab("compose") }}
+              timeColumnLabel="Scheduled time"
+              timeField="scheduledAt"
+            />
+          )}
+
+          {tab === "sent" && (
+            <RecipientTable
+              rows={sent}
+              loading={sentLoading}
+              error={sentError}
+              emptyMessage="No emails have been sent yet."
+              timeColumnLabel="Sent time"
+              timeField="sentAt"
+              showPreviewLink
+            />
+          )}
         </div>
-
-        {tab === "compose" && (
-          <ComposeForm
-            onScheduled={() => {
-              loadScheduled();
-              setTab("scheduled");
-            }}
-          />
-        )}
-
-        {tab === "scheduled" && (
-          <RecipientTable
-            rows={scheduled}
-            loading={scheduledLoading}
-            error={scheduledError}
-            emptyMessage="No scheduled emails yet. Compose one to get started."
-            timeColumnLabel="Scheduled time"
-            timeField="scheduledAt"
-          />
-        )}
-
-        {tab === "sent" && (
-          <RecipientTable
-            rows={sent}
-            loading={sentLoading}
-            error={sentError}
-            emptyMessage="No emails have been sent yet."
-            timeColumnLabel="Sent time"
-            timeField="sentAt"
-            showPreviewLink
-          />
-        )}
-      </main>
+      </div>
     </div>
   );
 }
