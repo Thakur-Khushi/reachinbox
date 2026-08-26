@@ -1,7 +1,18 @@
+import { useState } from "react";
 import { api } from "../services/api";
 import Button from "../components/ui/Button";
+import { IconAlertTriangle } from "../components/icons";
 
 export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [notice, setNotice] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setNotice(true);
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-card">
@@ -38,25 +49,32 @@ export default function Login() {
           <div className="h-px flex-1 bg-slate-100" />
         </div>
 
-        <div className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <input
-            disabled
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="Email ID"
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-400 placeholder:text-slate-400"
+            className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
           />
           <input
-            disabled
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             type="password"
             placeholder="Password"
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-400 placeholder:text-slate-400"
+            className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
           />
-          <Button disabled className="w-full rounded-lg !py-2.5">
+          <Button type="submit" className="w-full rounded-lg !py-2.5">
             Login
           </Button>
-          <p className="text-center text-xs text-slate-400">
-            Email/password sign-in isn't available — please continue with Google above.
-          </p>
-        </div>
+
+          {notice && (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
+              <IconAlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+              Email/password sign-in isn't available for this project — please continue with
+              Google above.
+            </div>
+          )}
+        </form>
       </div>
     </div>
   );
