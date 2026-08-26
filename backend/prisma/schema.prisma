@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String   @unique
+  email     String   @unique
+  name      String
+  photoUrl  String?
+  createdAt DateTime @default(now())
+
+  campaigns  Campaign[]
+  recipients EmailRecipient[]
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  userId      String
+  subject     String
+  body        String
+  startTime   DateTime
+  delayMs     Int
+  hourlyLimit Int
+  createdAt   DateTime @default(now())
+
+  user       User             @relation(fields: [userId], references: [id])
+  recipients EmailRecipient[]
+
+  @@index([userId])
+}
+
+model EmailRecipient {
+  id          String      @id @default(uuid())
+  campaignId  String
+  userId      String
+  recipient   String
+  subject     String
+  body        String
+  status      EmailStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  windowIndex Int
+  sentAt      DateTime?
+  previewUrl  String?
+  error       String?
+  createdAt   DateTime    @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@index([campaignId])
+}
