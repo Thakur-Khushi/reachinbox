@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toDatetimeLocal } from "../lib/dateFormat";
+import { useClickOutside } from "../lib/useClickOutside";
 import { IconClock, IconCalendar } from "./icons";
 import Button from "./ui/Button";
 
@@ -32,16 +33,7 @@ export default function SendLaterPopover({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  useClickOutside(ref, open, () => setOpen(false));
 
   function openPopover() {
     setDraft(value);
