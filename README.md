@@ -29,6 +29,8 @@ reachinbox-scheduler/
 - PostgreSQL 14+ and Redis 6+ — either:
   - **Docker**: `docker compose up -d` from the repo root, or
   - **Native installs**: Postgres running on `localhost:5432` and Redis on `localhost:6379`
+    (on Windows, Redis has no official build — [Memurai](https://www.memurai.com/get-memurai)'s
+    free Developer edition is a drop-in Redis-protocol-compatible service)
 - A Google Cloud OAuth Client ID (see next section)
 
 ## 2. Create Google OAuth credentials
@@ -88,19 +90,20 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173, sign in with Google, and you should see your name/email/photo in the
-header.
+Open http://localhost:5173, sign in with Google, and you should see your name, email, and photo
+in the sidebar, with stat cards (Scheduled / Sent / Failed) at the top of the dashboard.
 
 ## 6. Try it end to end
 
-1. **Compose** tab: enter a subject/body, upload a `.csv` or `.txt` file of recipient emails (one
-   per line, or a column in a CSV — invalid/duplicate entries are filtered out automatically), and
-   confirm the "N valid addresses found" count.
+1. **Compose**: enter a subject/body, then drag-and-drop (or click to browse) a `.csv` or `.txt`
+   file of recipient emails — one per line, or a column in a CSV. Invalid/duplicate entries are
+   filtered out automatically and the valid count is shown immediately; click **View recipients**
+   to review the parsed list and remove any address before scheduling.
 2. Pick a start time a minute or two in the future, a small delay (e.g. `2` seconds) and an hourly
    limit, then click **Schedule**.
-3. **Scheduled** tab: rows appear immediately with status `SCHEDULED`, and drain out as their send
+3. **Scheduled**: rows appear immediately with status `Scheduled`, and drain out as their send
    time arrives (auto-refreshes every 5s).
-4. **Sent** tab: completed rows land here with a clickable **Preview** link — that's the real
+4. **Sent**: completed rows land here with a clickable **Preview** link — that's the real
    Ethereal inbox showing the email your worker sent.
 
 ### Restart / durability test
@@ -116,9 +119,10 @@ header.
 
 Schedule more recipients than your hourly limit (e.g. 120 recipients, hourly limit 50, delay 1s).
 Watch the **Scheduled** tab: the first 50 drain quickly, then the remaining rows' "Scheduled time"
-jumps forward to the start of the next hour window instead of failing — the limit is enforced via
-an atomic Redis counter (`rate:<campaignId>:<windowIndex>`), not an in-process variable, so it
-stays correct even with `WORKER_CONCURRENCY` > 1 or multiple worker processes running.
+rolls forward into the next hour window (still spaced out by your delay, just starting an hour
+later) instead of failing — the limit is enforced via an atomic Redis counter
+(`rate:<campaignId>:<windowIndex>`), not an in-process variable, so it stays correct even with
+`WORKER_CONCURRENCY` > 1 or multiple worker processes running.
 
 ## How the pieces fit together
 
@@ -133,13 +137,18 @@ flowchart TD
     G --> C
 ```
 
-- **Idempotency**: each BullMQ job's `jobId` is the recipient's database row id, and before
-  sending, the worker does an atomic `UPDATE ... WHERE status = 'SCHEDULED'` compare-and-swap to
-  claim the row. If a job somehow fires twice (crash + BullMQ retry, requeue, etc.) the second
-  attempt finds the row already `SENT`/claimed and skips.
+- **Idempotency**: a campaign's initial BullMQ job for each recipient uses that recipient's
+  database row id as its `jobId`. The actual guarantee against double-sending, though, is a DB
+  compare-and-swap: before sending, the worker runs an atomic
+  `UPDATE ... WHERE status = 'SCHEDULED'` to claim the row. If a job somehow fires twice (crash +
+  BullMQ retry, a rate-limit requeue, etc.) whichever attempt loses the compare-and-swap sees 0
+  rows updated and skips — no email goes out twice, and this holds even for requeued jobs whose
+  `jobId` gets a `:w<N>` suffix to avoid colliding with the still-active original.
 - **Hourly limit**: computed once at schedule time (spacing recipients across hour windows) and
   re-enforced at send time against a Redis `INCR` counter, so an overloaded window defers the
-  extra recipients to the next hour instead of dropping or failing them.
+  extra recipients into the next hour instead of dropping or failing them — a second Redis counter
+  tracks each recipient's position within that new window so they stay spaced by `delayMs` instead
+  of all landing on the same instant.
 - **Concurrency**: `WORKER_CONCURRENCY` controls how many *due* jobs the worker pulls at once —
   it doesn't change when a job becomes due, so delay spacing and the hourly cap hold regardless of
   its value.
